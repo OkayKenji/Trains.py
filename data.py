@@ -1,12 +1,13 @@
 import pandas as pd
 
 def getServices(calendar_dates,railroad):
+    calendar_dates = calendar_dates.astype({'date':'str'})
     while True:
         listOfServices = calendar_dates[calendar_dates.date == getDate()]
         if not listOfServices.empty:
             break
         else:
-            if railroad == 'MNRR':
+            if railroad == 'mnrr':
                 print("Opps! That was not a valid date. 07/14/2022 to 11/20/2022 only.")
             else:
                 print("Opps! That was not a valid date. 07/13/2022 to 09/05/2022 only.")
@@ -17,16 +18,21 @@ def getDate():
     day = input("Enter the day (as a two digit number): ")
     year = input("Enter the year (as a four digit number): ")
     if year+month+day == '':
-        return int('20220721')
-    return int(year+month+day)
+        return '20220723'
+    return year+month+day
 
 def loadData():
-    railroad = input("Enter the railroad (MNRR/LIRR): ")
-    print("Wait a moment as we read in data...")
-    if railroad == 'MNRR':
-        return pd.read_csv(f'data/{railroad}/calendar_dates.csv'), pd.read_csv(f'data/{railroad}/routes.csv'), pd.read_csv(f'data/{railroad}/stop_times.csv'), pd.read_csv(f'data/{railroad}/stops.csv'),  pd.read_csv(f'data/{railroad}/trips.csv'), pd.read_csv(f'data/{railroad}/calendar_dates.csv'), pd.read_csv(f'data/{railroad}/transfers.csv'), railroad
-    else:
-        return pd.read_csv(f'data/{railroad}/calendar_dates.csv'), pd.read_csv(f'data/{railroad}/routes.csv'), pd.read_csv(f'data/{railroad}/stop_times.csv'), pd.read_csv(f'data/{railroad}/stops.csv'),  pd.read_csv(f'data/{railroad}/trips.csv'), None, None, railroad
+    while True:
+        railroad = input("Enter the railroad (MNRR/LIRR): ")
+        
+        if railroad.lower() == 'mnrr':
+            print("Wait a moment as we read in data...")
+            return pd.read_csv(f'data/MNRR/calendar_dates.csv'), pd.read_csv(f'data/MNRR/routes.csv'), pd.read_csv(f'data/MNRR/stop_times.csv'), pd.read_csv(f'data/MNRR/stops.csv'),  pd.read_csv(f'data/MNRR/trips.csv'), pd.read_csv(f'data/MNRR/calendar_dates.csv'), pd.read_csv(f'data/MNRR/transfers.csv'), railroad
+        elif railroad.lower() == 'lirr':
+            print("Wait a moment as we read in data...")
+            return pd.read_csv(f'data/LIRR/calendar_dates.csv'), pd.read_csv(f'data/LIRR/routes.csv'), pd.read_csv(f'data/LIRR/stop_times.csv'), pd.read_csv(f'data/LIRR/stops.csv'),  pd.read_csv(f'data/LIRR/trips.csv'), None, None, railroad
+        else:
+            print("Error, invalid name, try again.")
 
 def getTrains(listOfServices,trips): 
     listOfTrains = []
@@ -42,15 +48,20 @@ def trainAnaysis(listOfTrains,routes):
         print("    "+routes.route_long_name.iloc[index]+":",len(listOfTrains[listOfTrains.route_id == route]))
 
 def getInfoByTrainNumber(listOfTrains,stop_times,routes,stops):
-    trainNum = input("Train number: ")
-    try: 
-        trip_id = listOfTrains[listOfTrains.trip_short_name == trainNum].trip_id.to_numpy()[0]
-        route = routes[routes.route_id == listOfTrains[listOfTrains.trip_short_name ==trainNum].route_id.to_numpy()[0]].route_long_name.to_numpy()[0]
-        trip_headsign = listOfTrains[listOfTrains.trip_short_name == trainNum].trip_headsign.to_numpy()[0]
-        trip_stops = stop_times[stop_times.trip_id == trip_id]
-    except:
-        print("Error train not found!")
-        return
+    while True:
+        trainNum = input("Train number: ")
+        if trainNum == 'Exit':
+            return
+        try: 
+            trip_id = listOfTrains[listOfTrains.trip_short_name == trainNum].trip_id.to_numpy()[0]
+            route = routes[routes.route_id == listOfTrains[listOfTrains.trip_short_name ==trainNum].route_id.to_numpy()[0]].route_long_name.to_numpy()[0]
+            trip_headsign = listOfTrains[listOfTrains.trip_short_name == trainNum].trip_headsign.to_numpy()[0]
+            trip_stops = stop_times[stop_times.trip_id == trip_id]
+        except:
+            print("Error train not found!")
+        else:
+            break
+            
 
     print('Train line:',route)
     print('Train to:',trip_headsign)
@@ -62,19 +73,27 @@ def listStops(trip_stops,stops):
         stop_name = stops[stops.stop_id == stop[3]].stop_name.to_numpy()[0]
         print(stop_name,stop[1])
 
-def getTrainsAtStop(listOfTrains,stop_times,routes,stops,reformated,transfers=None):
-    stop_name = input("Enter station name: ")
-    num = cvtStringToNumber(stop_name,stops)
+def getStopingTrainsAtStop(railroad,stops,reformated):
+
+    while True:
+        stop_name = input("Enter station name: ")
+        num = cvtStringToNumber(stop_name,stops)
+        if num == None:
+            print("Error, station not found!")
+        else:
+            break
    
     count = 0
     for i in reformated:
-        arr = i.to_numpy()
+        arr = i[0].to_numpy()
         for ii in arr:
             if ii[3] == int(num):
-                print(ii)
+                if railroad == 'mnrr':
+                    print(f'{ii[1]} on track {ii[7]} {ii[8]} Train: {i[1]} to: {i[2]} going: {i[3]}')
+                else:
+                    print(f'{ii[1]} Train: {i[1]} to: {i[2]} going: {i[3]}')
                 count += 1
     print(count)
-    return None
 
 def cvtStringToNumber(stop_name,stops):
     trainName = stops[stops.stop_name == stop_name]
@@ -85,12 +104,10 @@ def cvtStringToNumber(stop_name,stops):
 
 def reformat(listOfTrains,stop_times): 
     reformated = []
-    myFile = open("output.txt","a")
-    for train in listOfTrains.trip_id:
-        temp = stop_times[stop_times.trip_id == train]
+    for index,train in enumerate(listOfTrains.trip_id):
+        temp = [stop_times[stop_times.trip_id == train],listOfTrains.trip_short_name.iloc[index],listOfTrains.trip_headsign.iloc[index],listOfTrains.direction_id.iloc[index],listOfTrains.shape_id.iloc[index]]
         reformated.append(temp)
-        myFile.write(temp.to_string()+"\n")
-    myFile.close()
+
     return reformated
 
 
@@ -104,7 +121,7 @@ def main():
 
     # gets all of the trains that run that day
     listOfTrains = getTrains(listOfServices,trips)
-    listOfTrains = listOfTrains.astype({'trip_short_name':'str'})
+    listOfTrains = listOfTrains.astype({'trip_short_name':'str','trip_headsign':'str','trip_short_name':'str','direction_id':'str','shape_id':'str'})
     print("Wait a while as we process data...")
     reformated = reformat(listOfTrains,stop_times)
 
@@ -118,7 +135,7 @@ def main():
         elif userRequest == 'B':
             getInfoByTrainNumber(listOfTrains,stop_times,routes,stops)
         elif userRequest == 'C':
-            getTrainsAtStop(listOfTrains,stop_times,routes,stops,reformated)
+            getStopingTrainsAtStop(railroad,stops,reformated)
         elif userRequest == 'D':
             myFile = open("output.txt","w")
             myFile.write(listOfTrains.to_string())
